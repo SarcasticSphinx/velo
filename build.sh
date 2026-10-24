@@ -14,33 +14,12 @@ xcrun swiftc -module-cache-path "${TMPDIR:-/tmp}/Velo-ModuleCache" -target "$(un
   -framework Carbon -framework ApplicationServices \
   Sources/*.swift -o "$APP/Contents/MacOS/Velo"
 chmod +x "$APP/Contents/MacOS/Velo"
-# macOS ties Accessibility permission to the signature. An ad-hoc signature changes on
-# every build, silently revoking auto-paste, so sign with a stable local certificate.
-IDENTITY="BreezeDictate Local Signing"
-if ! security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
-  echo "Creating local code-signing certificate \"$IDENTITY\" (one time)..."
-  CERTDIR=$(mktemp -d -t breezecert)
-  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=$IDENTITY" \
-    -keyout "$CERTDIR/key.pem" -out "$CERTDIR/cert.pem" \
-    -addext "keyUsage=critical,digitalSignature" -addext "extendedKeyUsage=critical,codeSigning" \
-    -addext "basicConstraints=critical,CA:false" 2>/dev/null
-  LEGACY=$(openssl version | grep -q '^OpenSSL 3' && echo -legacy || true)
-  openssl pkcs12 -export $LEGACY -inkey "$CERTDIR/key.pem" -in "$CERTDIR/cert.pem" \
-    -name "$IDENTITY" -out "$CERTDIR/identity.p12" -passout pass:breeze
-  security import "$CERTDIR/identity.p12" -k "$HOME/Library/Keychains/login.keychain-db" \
-    -P breeze -T /usr/bin/codesign >/dev/null
-  rm -rf "$CERTDIR"
-fi
-if codesign --force --sign "$IDENTITY" "$APP" 2>/dev/null; then
-  # Permission granted to a previous ad-hoc build can't carry over; reset it once so macOS asks again.
-  MARKER="$PWD/dist/.signed-with-local-certificate"
-  if [ ! -f "$MARKER" ]; then
-    tccutil reset Accessibility dev.local.BreezeDictate >/dev/null 2>&1 || true
-    touch "$MARKER"
-    echo 'Re-enable Accessibility for Velo when prompted (needed once).'
-  fi
+# Use an existing identity without creating certificates or resetting permissions.
+IDENTITY="${VELO_SIGNING_IDENTITY:-BreezeDictate Local Signing}"
+if security find-certificate -c "$IDENTITY" >/dev/null 2>&1 && codesign --force --sign "$IDENTITY" "$APP"; then
+  echo "Signed with existing identity: $IDENTITY"
 else
-  echo 'Local certificate unavailable; using ad-hoc signature (Accessibility must be re-enabled after each build).'
+  echo 'Using ad-hoc signing; Accessibility may need reauthorization after rebuilding.'
   codesign --force --sign - "$APP"
 fi
 echo ''

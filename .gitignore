@@ -1,0 +1,10 @@
+.DS_Store
+dist/
+.build/
+DerivedData/
+*.log
+.env
+.env.*
+*.pem
+*.p12
+*.key

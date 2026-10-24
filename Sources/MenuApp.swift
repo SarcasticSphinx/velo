@@ -500,7 +500,8 @@ final class DictationApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateUI() {
-        statusItem.button?.contentTintColor = engine.isRecording ? .systemPurple : nil
+        // Let AppKit choose contrasting template colors in every recording state.
+        statusItem.button?.contentTintColor = nil
         if engine.isRecording {
             statusItem.button?.image = brandMenuIcon ?? NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Recording")
             toggleItem.title = "Stop Dictation   ⌥⇧Space"
